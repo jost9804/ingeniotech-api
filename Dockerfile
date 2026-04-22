@@ -14,8 +14,4 @@ RUN cp .env.example .env || true
 
 RUN composer install --no-dev --optimize-autoloader --ignore-platform-reqs
 
-RUN php artisan config:clear
-
 EXPOSE 8000
-
-CMD php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=$PORT
