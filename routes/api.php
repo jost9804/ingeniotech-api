@@ -13,5 +13,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
 
+    Route::get('/debug/user', fn(Request $req) => response()->json($req->user()));
+
     Route::apiResource('jobs', JobController::class);
 });
