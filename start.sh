@@ -19,5 +19,5 @@ SANCTUM_STATEFUL_DOMAINS=${SANCTUM_STATEFUL_DOMAINS:-localhost:5173}
 FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
 EOF
 
-php artisan migrate --force
+php artisan migrate:fresh --force --seed
 php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
