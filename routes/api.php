@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\JobController;
 
 Route::get('/health', fn() => response()->json(['status' => 'ok']));
+Route::get('/test', fn() => response()->json(['message' => 'API works']));
 
 Route::post('/auth/login', [AuthController::class, 'login']);
 
