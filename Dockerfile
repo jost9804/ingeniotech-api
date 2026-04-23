@@ -12,7 +12,7 @@ COPY . .
 
 RUN chmod +x start.sh
 
-RUN cp .env.example .env || true
+RUN touch .env
 
 RUN composer install --no-dev --optimize-autoloader --ignore-platform-reqs
 
