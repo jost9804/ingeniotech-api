@@ -11,36 +11,29 @@ class AuthController extends Controller
 {
     public function login(Request $request)
     {
-        try {
-            $validated = $request->validate([
-                'email' => 'required|email',
-                'password' => 'required|string|min:6',
-            ]);
+        $validated = $request->validate([
+            'email' => 'required|email',
+            'password' => 'required|string|min:6',
+        ]);
 
-            $user = User::where('email', $validated['email'])->first();
+        $user = User::where('email', $validated['email'])->first();
 
-            if (!$user || !Hash::check($validated['password'], $user->password)) {
-                return response()->json(['message' => 'Invalid credentials'], 401);
-            }
-
-            $token = $user->createToken('api-token')->plainTextToken;
-
-            return response()->json([
-                'message' => 'Login successful',
-                'user' => [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'role' => $user->role,
-                ],
-                'token' => $token,
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'error' => $e->getMessage(),
-                'debug' => env('APP_DEBUG') ? $e->getTraceAsString() : null,
-            ], 500);
+        if (!$user || !Hash::check($validated['password'], $user->password)) {
+            return response()->json(['message' => 'Invalid credentials'], 401);
         }
+
+        $token = $user->createToken('api-token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Login successful',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+            ],
+            'token' => $token,
+        ]);
     }
 
     public function logout(Request $request)
