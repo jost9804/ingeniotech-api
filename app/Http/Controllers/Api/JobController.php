@@ -10,23 +10,19 @@ class JobController extends Controller
 {
     public function index(Request $request)
     {
-        try {
-            $query = Job::with('assignedTo');
+        $query = Job::with('assignedTo');
 
-            if ($request->has('status')) {
-                $query->where('status', $request->status);
-            }
-
-            if ($request->has('assigned_to')) {
-                $query->where('assigned_to', $request->assigned_to);
-            }
-
-            $jobs = $query->paginate(15);
-
-            return response()->json($jobs);
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+        if ($request->has('status')) {
+            $query->where('status', $request->status);
         }
+
+        if ($request->has('assigned_to')) {
+            $query->where('assigned_to', $request->assigned_to);
+        }
+
+        $jobs = $query->paginate(15);
+
+        return response()->json($jobs);
     }
 
     public function store(Request $request)
