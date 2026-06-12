@@ -19,5 +19,9 @@ SANCTUM_STATEFUL_DOMAINS=${SANCTUM_STATEFUL_DOMAINS:-localhost:5173}
 FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
 EOF
 
-php artisan migrate:fresh --force --seed
+# migrate (sin :fresh) preserva los datos entre deploys.
+php artisan migrate --force
+# Solo el UserSeeder es idempotente; garantiza el usuario admin sin duplicar datos.
+php artisan db:seed --class=UserSeeder --force
+php artisan storage:link || true
 php artisan serve --host=0.0.0.0 --port=${PORT:-8000}

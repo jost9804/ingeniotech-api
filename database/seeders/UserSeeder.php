@@ -5,23 +5,29 @@ namespace Database\Seeders;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        User::create([
-            'name' => 'Jose Sierra',
-            'email' => 'jose@ingeniotech.com',
-            'password' => 'password',
-            'role' => 'admin',
-        ]);
+        // firstOrCreate => idempotente: seguro de correr en cada deploy sin duplicar.
+        User::firstOrCreate(
+            ['email' => 'jose@ingeniotech.com'],
+            [
+                'name' => 'Jose Sierra',
+                'password' => Hash::make('password'),
+                'role' => 'admin',
+            ]
+        );
 
-        User::create([
-            'name' => 'Santiago',
-            'email' => 'santiago@ingeniotech.com',
-            'password' => 'password',
-            'role' => 'technician',
-        ]);
+        User::firstOrCreate(
+            ['email' => 'santiago@ingeniotech.com'],
+            [
+                'name' => 'Santiago',
+                'password' => Hash::make('password'),
+                'role' => 'technician',
+            ]
+        );
     }
 }
