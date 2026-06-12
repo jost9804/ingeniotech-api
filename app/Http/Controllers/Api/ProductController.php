@@ -135,15 +135,11 @@ class ProductController extends Controller
           "specs": [
             { "label": "Pantalla", "value": "6.5'' Super AMOLED 90Hz" },
             { "label": "Cámara", "value": "50MP" }
-          ],
-          "images": [
-            "https://url-directa-de-una-imagen-del-producto.jpg"
           ]
         }
 
         Reglas:
         - "specs": entre 4 y 8 características técnicas reales (no inventes datos). Cada una con "label" y "value" cortos.
-        - "images": hasta 4 URLs DIRECTAS a imágenes del producto (que terminen en .jpg, .jpeg, .png o .webp), encontradas en la web. Si no encuentras URLs directas y reales, deja la lista vacía []. No inventes URLs.
         - Responde solo el JSON, nada más.
         PROMPT;
 
@@ -192,17 +188,13 @@ class ProductController extends Controller
             $description = $text;
         }
 
-        // Las imágenes vienen de Google Custom Search (fiables). Si no está
-        // configurado o no hay resultados, usamos las que sugirió la IA.
-        $images = $this->searchProductImages($name);
-        if (empty($images)) {
-            $images = $this->normalizeImageUrls($parsed['images'] ?? []);
-        }
-
+        // Las imágenes vienen de Google Custom Search (fiables, re-alojadas en
+        // nuestro Storage). Si no está configurado, se dejan en blanco y el admin
+        // las sube/pega a mano (las URLs sugeridas por IA son poco fiables).
         return response()->json([
             'description' => $description,
             'specs' => $this->normalizeSpecs($parsed['specs'] ?? []),
-            'images' => $images,
+            'images' => $this->searchProductImages($name),
         ]);
     }
 
@@ -355,26 +347,6 @@ class ProductController extends Controller
         }
 
         return array_slice($out, 0, 10);
-    }
-
-    /**
-     * Conserva solo URLs http(s) que parezcan imágenes directas.
-     */
-    private function normalizeImageUrls($images): array
-    {
-        if (! is_array($images)) {
-            return [];
-        }
-
-        $out = [];
-        foreach ($images as $url) {
-            $url = trim((string) $url);
-            if (preg_match('#^https?://.+\.(jpe?g|png|webp|gif)(\?.*)?$#i', $url)) {
-                $out[] = $url;
-            }
-        }
-
-        return array_slice(array_values(array_unique($out)), 0, 4);
     }
 
     private function validateProduct(Request $request): array
