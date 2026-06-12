@@ -1,11 +1,29 @@
 .git
 .gitignore
+.github
 .env.example
 README.md
 docker-compose.yml
 .DS_Store
-node_modules
-.env.local
-storage/logs/*
 .vscode
 .idea
+
+# Se reconstruye dentro del contenedor con composer install
+vendor
+
+# Dependencias de front (no aplican al backend)
+node_modules
+
+# Symlink local que rompe el tar del build; se recrea con storage:link en runtime
+public/storage
+
+# Credenciales y config local: en produccion se usan los secrets de Fly
+.env
+.env.local
+php.ini
+
+# Logs y cache locales
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
