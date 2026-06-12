@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class ProductController extends Controller
@@ -206,10 +207,30 @@ class ProductController extends Controller
     }
 
     /**
-     * Busca imágenes reales del producto con Google Custom Search (image search).
-     * Devuelve hasta 4 URLs directas. Vacío si no está configurado o falla.
+     * Busca imágenes del producto con Google Custom Search, las descarga y
+     * las re-aloja en nuestro Supabase Storage (para que no se rompan por
+     * hotlinking). Devuelve hasta 4 URLs propias. Vacío si no hay/ no sirven.
      */
     private function searchProductImages(string $name): array
+    {
+        $hosted = [];
+        foreach ($this->customSearchImageUrls($name) as $url) {
+            $rehosted = $this->rehostImage($url);
+            if ($rehosted) {
+                $hosted[] = $rehosted;
+            }
+            if (count($hosted) >= 4) {
+                break;
+            }
+        }
+
+        return $hosted;
+    }
+
+    /**
+     * URLs candidatas (hasta 8) que Google Custom Search marca como imagen.
+     */
+    private function customSearchImageUrls(string $name): array
     {
         $key = config('services.google_search.key');
         $cx = config('services.google_search.cx');
@@ -223,7 +244,7 @@ class ProductController extends Controller
                 'cx' => $cx,
                 'q' => $name,
                 'searchType' => 'image',
-                'num' => 6,
+                'num' => 8,
                 'safe' => 'active',
                 'imgSize' => 'large',
             ]);
@@ -239,13 +260,58 @@ class ProductController extends Controller
         foreach (data_get($response->json(), 'items', []) as $item) {
             $url = trim((string) data_get($item, 'link'));
             $mime = (string) data_get($item, 'mime');
-            // Solo enlaces http(s) que el propio buscador marca como imagen.
             if ($url !== '' && str_starts_with($mime, 'image/') && str_starts_with($url, 'http')) {
                 $out[] = $url;
             }
         }
 
-        return array_slice(array_values(array_unique($out)), 0, 4);
+        return array_values(array_unique($out));
+    }
+
+    /**
+     * Descarga una imagen externa y la sube a nuestro Storage.
+     * Devuelve la URL propia, o null si no se pudo (404, no es imagen, etc.).
+     */
+    private function rehostImage(string $url): ?string
+    {
+        try {
+            $response = Http::withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            ])->timeout(12)->get($url);
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        if (! $response->successful()) {
+            return null;
+        }
+
+        $contentType = strtolower((string) $response->header('Content-Type'));
+        $ext = match (true) {
+            str_contains($contentType, 'jpeg'), str_contains($contentType, 'jpg') => 'jpg',
+            str_contains($contentType, 'png') => 'png',
+            str_contains($contentType, 'webp') => 'webp',
+            str_contains($contentType, 'gif') => 'gif',
+            default => null,
+        };
+        if ($ext === null) {
+            return null;
+        }
+
+        $body = $response->body();
+        // Descarta respuestas vacías o sospechosamente pequeñas (no son fotos reales).
+        if (strlen($body) < 2048) {
+            return null;
+        }
+
+        $path = 'products/gallery/'.Str::random(40).'.'.$ext;
+        try {
+            Storage::disk($this->disk())->put($path, $body);
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        return Storage::disk($this->disk())->url($path);
     }
 
     /**
