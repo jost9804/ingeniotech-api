@@ -356,7 +356,7 @@ class ProductController extends Controller
             'description' => 'required|string',
             'price' => 'required|integer|min:0',
             'category' => ['required', Rule::in(self::CATEGORIES)],
-            'image' => 'nullable|image|max:4096',
+            'image' => 'nullable|image|max:8192',
             'specs' => 'nullable|string',
             'gallery' => 'nullable|string',
             'featured' => 'nullable|boolean',
