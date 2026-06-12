@@ -33,7 +33,9 @@ class Product extends Model
     protected function image(): Attribute
     {
         return Attribute::make(
-            get: fn (?string $value) => $value ? Storage::disk('public')->url($value) : null,
+            get: fn (?string $value) => $value
+                ? Storage::disk(config('filesystems.product_disk'))->url($value)
+                : null,
         );
     }
 }

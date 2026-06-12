@@ -51,7 +51,7 @@ class ProductController extends Controller
         $data = $this->validateProduct($request);
 
         if ($request->hasFile('image')) {
-            $data['image'] = $request->file('image')->store('products', 'public');
+            $data['image'] = $request->file('image')->store('products', $this->disk());
         }
 
         $product = Product::create($data);
@@ -66,9 +66,9 @@ class ProductController extends Controller
         if ($request->hasFile('image')) {
             $old = $product->getRawOriginal('image');
             if ($old) {
-                Storage::disk('public')->delete($old);
+                Storage::disk($this->disk())->delete($old);
             }
-            $data['image'] = $request->file('image')->store('products', 'public');
+            $data['image'] = $request->file('image')->store('products', $this->disk());
         }
 
         $product->update($data);
@@ -80,12 +80,17 @@ class ProductController extends Controller
     {
         $image = $product->getRawOriginal('image');
         if ($image) {
-            Storage::disk('public')->delete($image);
+            Storage::disk($this->disk())->delete($image);
         }
 
         $product->delete();
 
         return response()->json(['message' => 'Producto eliminado']);
+    }
+
+    private function disk(): string
+    {
+        return config('filesystems.product_disk');
     }
 
     private function validateProduct(Request $request): array

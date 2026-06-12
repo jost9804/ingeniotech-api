@@ -16,6 +16,12 @@ return [
     'default' => env('FILESYSTEM_DISK', 'local'),
 
     /*
+    | Disco donde se guardan las imágenes de productos.
+    | Local: 'public' (disco efímero). Producción: 's3' (Supabase Storage).
+    */
+    'product_disk' => env('PRODUCT_DISK', 'public'),
+
+    /*
     |--------------------------------------------------------------------------
     | Filesystem Disks
     |--------------------------------------------------------------------------
