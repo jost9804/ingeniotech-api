@@ -47,6 +47,18 @@ class ProductController extends Controller
         return response()->json($product);
     }
 
+    /**
+     * Detalle público: solo si el producto está activo.
+     */
+    public function publicShow(Product $product)
+    {
+        if (! $product->is_active) {
+            abort(404);
+        }
+
+        return response()->json($product);
+    }
+
     public function store(Request $request)
     {
         $data = $this->validateProduct($request);
@@ -113,13 +125,25 @@ class ProductController extends Controller
 
         $name = $validated['name'];
         $prompt = <<<PROMPT
-        Eres un redactor de e-commerce para una tienda de tecnología en Colombia.
+        Eres un asistente de e-commerce para una tienda de tecnología en Colombia.
         Busca en la web las características reales del producto: "{$name}".
-        Redacta UNA sola descripción de venta, atractiva y concisa (máximo 55 palabras),
-        en español, en tono cercano y profesional. Menciona 2 a 4 características técnicas
-        clave reales (no inventes datos). No uses markdown, viñetas, títulos ni emojis:
-        devuelve únicamente el párrafo de descripción, sin comillas. No menciones el precio
-        ni la garantía.
+
+        Devuelve ÚNICAMENTE un objeto JSON válido (sin markdown, sin ```), con esta forma exacta:
+        {
+          "description": "Descripción de venta atractiva en español, máximo 55 palabras, tono cercano y profesional, sin emojis ni precio ni garantía.",
+          "specs": [
+            { "label": "Pantalla", "value": "6.5'' Super AMOLED 90Hz" },
+            { "label": "Cámara", "value": "50MP" }
+          ],
+          "images": [
+            "https://url-directa-de-una-imagen-del-producto.jpg"
+          ]
+        }
+
+        Reglas:
+        - "specs": entre 4 y 8 características técnicas reales (no inventes datos). Cada una con "label" y "value" cortos.
+        - "images": hasta 4 URLs DIRECTAS a imágenes del producto (que terminen en .jpg, .jpeg, .png o .webp), encontradas en la web. Si no encuentras URLs directas y reales, deja la lista vacía []. No inventes URLs.
+        - Responde solo el JSON, nada más.
         PROMPT;
 
         $model = config('services.gemini.model', 'gemini-2.5-flash');
@@ -151,16 +175,90 @@ class ProductController extends Controller
             ], 502);
         }
 
-        $text = data_get($response->json(), 'candidates.0.content.parts.0.text');
-        $description = trim((string) $text);
+        $text = trim((string) data_get($response->json(), 'candidates.0.content.parts.0.text'));
 
-        if ($description === '') {
+        if ($text === '') {
             return response()->json([
-                'message' => 'La IA no devolvió una descripción. Intenta con un nombre más específico.',
+                'message' => 'La IA no devolvió resultados. Intenta con un nombre más específico.',
             ], 422);
         }
 
-        return response()->json(['description' => $description]);
+        $parsed = $this->parseAiJson($text);
+
+        $description = trim((string) ($parsed['description'] ?? ''));
+        if ($description === '') {
+            // Si no vino JSON, usamos el texto crudo como descripción.
+            $description = $text;
+        }
+
+        return response()->json([
+            'description' => $description,
+            'specs' => $this->normalizeSpecs($parsed['specs'] ?? []),
+            'images' => $this->normalizeImageUrls($parsed['images'] ?? []),
+        ]);
+    }
+
+    /**
+     * Extrae el objeto JSON de la respuesta de la IA (tolera ```json fences y texto alrededor).
+     */
+    private function parseAiJson(string $text): array
+    {
+        $clean = preg_replace('/^```(?:json)?|```$/m', '', $text);
+        $decoded = json_decode(trim((string) $clean), true);
+        if (is_array($decoded)) {
+            return $decoded;
+        }
+
+        // Fallback: tomar el primer bloque {...} que aparezca.
+        if (preg_match('/\{.*\}/s', $text, $m)) {
+            $decoded = json_decode($m[0], true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * Normaliza specs a una lista de { label, value } con strings limpios.
+     */
+    private function normalizeSpecs($specs): array
+    {
+        if (! is_array($specs)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($specs as $spec) {
+            $label = trim((string) data_get($spec, 'label'));
+            $value = trim((string) data_get($spec, 'value'));
+            if ($label !== '' && $value !== '') {
+                $out[] = ['label' => $label, 'value' => $value];
+            }
+        }
+
+        return array_slice($out, 0, 10);
+    }
+
+    /**
+     * Conserva solo URLs http(s) que parezcan imágenes directas.
+     */
+    private function normalizeImageUrls($images): array
+    {
+        if (! is_array($images)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($images as $url) {
+            $url = trim((string) $url);
+            if (preg_match('#^https?://.+\.(jpe?g|png|webp|gif)(\?.*)?$#i', $url)) {
+                $out[] = $url;
+            }
+        }
+
+        return array_slice(array_values(array_unique($out)), 0, 4);
     }
 
     private function validateProduct(Request $request): array
@@ -171,6 +269,8 @@ class ProductController extends Controller
             'price' => 'required|integer|min:0',
             'category' => ['required', Rule::in(self::CATEGORIES)],
             'image' => 'nullable|image|max:4096',
+            'specs' => 'nullable|string',
+            'gallery' => 'nullable|string',
             'featured' => 'nullable|boolean',
             'is_active' => 'nullable|boolean',
         ]);
@@ -179,9 +279,28 @@ class ProductController extends Controller
         $validated['featured'] = $request->boolean('featured');
         $validated['is_active'] = $request->has('is_active') ? $request->boolean('is_active') : true;
 
+        // specs y gallery llegan como JSON serializado; los decodificamos.
+        $validated['specs'] = $this->decodeJsonField($request->input('specs'));
+        $validated['gallery'] = $this->decodeJsonField($request->input('gallery'));
+
         // 'image' aquí solo es el archivo; el path se asigna aparte.
         unset($validated['image']);
 
         return $validated;
+    }
+
+    /**
+     * Decodifica un campo JSON enviado como string desde FormData.
+     * Devuelve un array (o null si viene vacío/ inválido).
+     */
+    private function decodeJsonField(?string $value): ?array
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $decoded = json_decode($value, true);
+
+        return is_array($decoded) ? array_values($decoded) : null;
     }
 }

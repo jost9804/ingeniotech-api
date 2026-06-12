@@ -11,9 +11,11 @@ class Product extends Model
     protected $fillable = [
         'name',
         'description',
+        'specs',
         'price',
         'category',
         'image',
+        'gallery',
         'featured',
         'is_active',
     ];
@@ -24,6 +26,8 @@ class Product extends Model
             'price' => 'integer',
             'featured' => 'boolean',
             'is_active' => 'boolean',
+            'specs' => 'array',
+            'gallery' => 'array',
         ];
     }
 
