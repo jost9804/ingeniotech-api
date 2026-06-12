@@ -1,0 +1,11 @@
+.git
+.gitignore
+.env.example
+README.md
+docker-compose.yml
+.DS_Store
+node_modules
+.env.local
+storage/logs/*
+.vscode
+.idea

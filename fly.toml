@@ -1,0 +1,35 @@
+app = "ingeniotech-api"
+primary_region = "sjc"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  APP_NAME = "Ingeniotech"
+  APP_ENV = "production"
+  APP_DEBUG = "false"
+  APP_TIMEZONE = "America/Bogota"
+  LOG_CHANNEL = "stack"
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 8000
+  processes = ["app"]
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+[checks]
+  [checks.status]
+    type = "http"
+    interval = "10s"
+    timeout = "5s"
+    grace_period = "30s"
+    method = "GET"
+    path = "/up"
