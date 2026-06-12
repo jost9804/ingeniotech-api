@@ -14,7 +14,6 @@ primary_region = "sjc"
 [[services]]
   protocol = "tcp"
   internal_port = 8000
-  processes = ["app"]
 
   [[services.ports]]
     port = 80
@@ -25,11 +24,10 @@ primary_region = "sjc"
     port = 443
     handlers = ["tls", "http"]
 
-[checks]
-  [checks.status]
-    type = "http"
-    interval = "10s"
-    timeout = "5s"
+  [services.http_checks]
+    enabled = true
+    interval = 10000
+    timeout = 5000
     grace_period = "30s"
     method = "GET"
     path = "/up"
