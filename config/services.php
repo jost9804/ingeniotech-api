@@ -36,4 +36,9 @@ return [
         'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
     ],
 
+    'google_search' => [
+        'key' => env('GOOGLE_SEARCH_KEY'),
+        'cx' => env('GOOGLE_SEARCH_CX'),
+    ],
+
 ];

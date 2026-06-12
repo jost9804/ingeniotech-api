@@ -191,11 +191,61 @@ class ProductController extends Controller
             $description = $text;
         }
 
+        // Las imágenes vienen de Google Custom Search (fiables). Si no está
+        // configurado o no hay resultados, usamos las que sugirió la IA.
+        $images = $this->searchProductImages($name);
+        if (empty($images)) {
+            $images = $this->normalizeImageUrls($parsed['images'] ?? []);
+        }
+
         return response()->json([
             'description' => $description,
             'specs' => $this->normalizeSpecs($parsed['specs'] ?? []),
-            'images' => $this->normalizeImageUrls($parsed['images'] ?? []),
+            'images' => $images,
         ]);
+    }
+
+    /**
+     * Busca imágenes reales del producto con Google Custom Search (image search).
+     * Devuelve hasta 4 URLs directas. Vacío si no está configurado o falla.
+     */
+    private function searchProductImages(string $name): array
+    {
+        $key = config('services.google_search.key');
+        $cx = config('services.google_search.cx');
+        if (! $key || ! $cx) {
+            return [];
+        }
+
+        try {
+            $response = Http::timeout(20)->get('https://www.googleapis.com/customsearch/v1', [
+                'key' => $key,
+                'cx' => $cx,
+                'q' => $name,
+                'searchType' => 'image',
+                'num' => 6,
+                'safe' => 'active',
+                'imgSize' => 'large',
+            ]);
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        if (! $response->successful()) {
+            return [];
+        }
+
+        $out = [];
+        foreach (data_get($response->json(), 'items', []) as $item) {
+            $url = trim((string) data_get($item, 'link'));
+            $mime = (string) data_get($item, 'mime');
+            // Solo enlaces http(s) que el propio buscador marca como imagen.
+            if ($url !== '' && str_starts_with($mime, 'image/') && str_starts_with($url, 'http')) {
+                $out[] = $url;
+            }
+        }
+
+        return array_slice(array_values(array_unique($out)), 0, 4);
     }
 
     /**
