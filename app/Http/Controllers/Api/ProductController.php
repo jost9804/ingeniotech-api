@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Models\Product;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
@@ -91,6 +92,75 @@ class ProductController extends Controller
     private function disk(): string
     {
         return config('filesystems.product_disk');
+    }
+
+    /**
+     * Genera una descripción de venta con IA (Gemini + búsqueda web),
+     * investigando las características reales del producto a partir del nombre.
+     */
+    public function generateDescription(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:160',
+        ]);
+
+        $apiKey = config('services.gemini.key');
+        if (! $apiKey) {
+            return response()->json([
+                'message' => 'La generación con IA no está configurada (falta GEMINI_API_KEY).',
+            ], 503);
+        }
+
+        $name = $validated['name'];
+        $prompt = <<<PROMPT
+        Eres un redactor de e-commerce para una tienda de tecnología en Colombia.
+        Busca en la web las características reales del producto: "{$name}".
+        Redacta UNA sola descripción de venta, atractiva y concisa (máximo 55 palabras),
+        en español, en tono cercano y profesional. Menciona 2 a 4 características técnicas
+        clave reales (no inventes datos). No uses markdown, viñetas, títulos ni emojis:
+        devuelve únicamente el párrafo de descripción, sin comillas. No menciones el precio
+        ni la garantía.
+        PROMPT;
+
+        $model = config('services.gemini.model', 'gemini-2.5-flash');
+        $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent";
+
+        try {
+            $response = Http::timeout(45)
+                ->withHeaders(['x-goog-api-key' => $apiKey])
+                ->post($endpoint, [
+                    'contents' => [
+                        ['parts' => [['text' => $prompt]]],
+                    ],
+                    'tools' => [
+                        ['google_search' => (object) []],
+                    ],
+                    'generationConfig' => [
+                        'temperature' => 0.7,
+                    ],
+                ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'No se pudo contactar el servicio de IA. Intenta de nuevo.',
+            ], 502);
+        }
+
+        if (! $response->successful()) {
+            return response()->json([
+                'message' => 'El servicio de IA devolvió un error. Intenta de nuevo.',
+            ], 502);
+        }
+
+        $text = data_get($response->json(), 'candidates.0.content.parts.0.text');
+        $description = trim((string) $text);
+
+        if ($description === '') {
+            return response()->json([
+                'message' => 'La IA no devolvió una descripción. Intenta con un nombre más específico.',
+            ], 422);
+        }
+
+        return response()->json(['description' => $description]);
     }
 
     private function validateProduct(Request $request): array

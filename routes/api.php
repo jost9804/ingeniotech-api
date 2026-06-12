@@ -18,6 +18,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('jobs', JobController::class);
 
     // Gestión de productos (admin). POST para update por la subida de imágenes.
+    Route::post('/products/generate-description', [ProductController::class, 'generateDescription']);
     Route::get('/admin/products', [ProductController::class, 'adminIndex']);
     Route::get('/products/{product}', [ProductController::class, 'show']);
     Route::post('/products', [ProductController::class, 'store']);
